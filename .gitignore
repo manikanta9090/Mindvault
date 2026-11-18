@@ -1,0 +1,32 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+*.local
+
+# Environment and secrets (examples are safe to track)
+.env
+.env.*
+!.env.example
+
+# Generated storage (keep the directory, not its contents)
+storage/*
+!storage/.gitkeep
+
+# Editors and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
