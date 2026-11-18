@@ -127,9 +127,13 @@ are gitignored; only the examples are tracked.
 | `MINDVAULT_LOG_LEVEL` | `INFO` | Root log level |
 | `MINDVAULT_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated allowed CORS origins |
 | `MINDVAULT_DOCS_ENABLED` | `true` | Enables `/docs`, `/redoc`, and `/openapi.json` |
+| `MINDVAULT_DATABASE_URL` | `sqlite:///./storage/mindvault.db` | SQLAlchemy database URL (relative SQLite paths resolve from the repository root) |
 | `VITE_API_BASE_URL` | `http://localhost:8000` | Backend base URL used by the frontend |
 
 No API endpoint returns environment variables or secrets.
+
+The application creates/opens its database and calls `Base.metadata.create_all()` during startup
+via the FastAPI lifespan. No ORM models exist yet, so no tables are created in this phase.
 
 ## Milestone 1 scope
 
@@ -141,3 +145,14 @@ Deferred to later milestones: database tables and migrations, ChromaDB, embeddin
 URL extraction, background ingestion, authentication, Docker, and Kubernetes.
 
 See `docs/milestone-1.md` for design notes.
+
+## Milestone 2, Phase 1 scope
+
+Implemented: SQLite/SQLAlchemy engine and session factory, declarative base, `get_db` dependency,
+explicit `init_db()` called from the application lifespan, and database foundation tests using
+temporary databases.
+
+Deferred to later phases: ORM models (including `KnowledgeItem`), ingestion endpoints, URL
+fetching, ChromaDB, embeddings, OpenAI, RAG, background workers, and authentication.
+
+See `docs/milestone-2-phase-1.md` for design notes.

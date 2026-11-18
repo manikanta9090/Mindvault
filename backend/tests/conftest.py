@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +13,13 @@ from app.main import create_app
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
-    settings = Settings(cors_origins=("http://localhost:5173",))
+def client(tmp_path: Path) -> Iterator[TestClient]:
+    # Every test app gets its own temporary database; the development database
+    # is never touched by the test suite.
+    db_path = tmp_path / "mindvault-test.db"
+    settings = Settings(
+        cors_origins=("http://localhost:5173",),
+        database_url=f"sqlite:///{db_path.as_posix()}",
+    )
     with TestClient(create_app(settings)) as test_client:
         yield test_client

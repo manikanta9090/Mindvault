@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.config import Settings, get_settings
+from app.core.database import create_database, init_db
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, logger
 from app.core.middleware import request_logging_middleware
@@ -19,15 +20,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     settings = settings or get_settings()
     configure_logging(settings.log_level)
+    database = create_database(settings.database_url)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        init_db(database)
+        logger.info(
+            "database_initialized",
+            extra={"backend": database.engine.url.get_backend_name()},
+        )
         logger.info(
             "application_started",
             extra={"environment": settings.environment, "version": settings.version},
         )
         yield
         logger.info("application_stopped")
+        database.dispose()
 
     docs_url = "/docs" if settings.docs_enabled else None
     app = FastAPI(
@@ -41,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     app.state.settings = settings
+    app.state.database = database
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
