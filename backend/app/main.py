@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -23,7 +24,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     database = create_database(settings.database_url)
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI):
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         init_db(database)
         logger.info(
             "database_initialized",
@@ -33,9 +34,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "application_started",
             extra={"environment": settings.environment, "version": settings.version},
         )
-        yield
-        logger.info("application_stopped")
-        database.dispose()
+        try:
+            yield
+        finally:
+            # Always release the engine, including when shutdown is abnormal.
+            logger.info("application_stopped")
+            database.dispose()
 
     docs_url = "/docs" if settings.docs_enabled else None
     app = FastAPI(
