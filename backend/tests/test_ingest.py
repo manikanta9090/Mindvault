@@ -151,20 +151,17 @@ def test_ingest_rejects_invalid_source_type(client: TestClient, source_type: obj
     assert _stored_items(database) == []
 
 
-def test_ingest_rejects_url_source_type(client: TestClient) -> None:
+def test_ingest_url_requires_source_url(client: TestClient) -> None:
+    # URL ingestion is now supported (see test_ingest_url.py), but a URL item
+    # without a source_url is still rejected at the validation boundary.
     response = client.post(
         "/ingest",
-        json={
-            "content": "page body",
-            "source_type": "URL",
-            "source_url": "https://example.com/article",
-        },
+        json={"content": "", "source_type": "URL"},
     )
     database: Database = client.app.state.database
 
-    assert response.status_code == 400
-    assert response.json()["error"]["code"] == "unsupported_source_type"
-    assert "NOTE" in response.json()["error"]["message"]
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
     assert _stored_items(database) == []
 
 

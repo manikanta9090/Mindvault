@@ -67,6 +67,9 @@ class Settings(BaseModel):
     api_title: str = "MindVault API"
     api_description: str = "Foundation API for the MindVault knowledge application."
     database_url: str = Field(default=DEFAULT_DATABASE_URL, validate_default=True)
+    fetch_timeout_seconds: float = Field(default=10.0, gt=0)
+    fetch_max_bytes: int = Field(default=2_000_000, gt=0)
+    fetch_max_redirects: int = Field(default=3, ge=0)
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -107,6 +110,9 @@ class Settings(BaseModel):
             cors_origins=env("CORS_ORIGINS", ",".join(_DEFAULT_CORS_ORIGINS)),
             docs_enabled=env("DOCS_ENABLED", "true").strip().lower() in _TRUE_VALUES,
             database_url=env("DATABASE_URL", DEFAULT_DATABASE_URL),
+            fetch_timeout_seconds=float(env("FETCH_TIMEOUT_SECONDS", "10.0")),
+            fetch_max_bytes=int(env("FETCH_MAX_BYTES", "2000000")),
+            fetch_max_redirects=int(env("FETCH_MAX_REDIRECTS", "3")),
         )
 
 

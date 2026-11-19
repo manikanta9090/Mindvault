@@ -33,18 +33,12 @@ class KnowledgeItemCreate(BaseModel):
     """Validated payload for capturing a raw knowledge item."""
 
     title: str | None = Field(default=None, max_length=TITLE_MAX_LENGTH)
-    content: str = Field(min_length=1)
+    # Required in the payload. NOTE items must supply real text; URL items may
+    # send an empty string because their content is extracted server-side and
+    # client-supplied content is never trusted.
+    content: str = Field()
     source_type: SourceType
     source_url: str | None = Field(default=None, max_length=SOURCE_URL_MAX_LENGTH)
-
-    @field_validator("content")
-    @classmethod
-    def _content_must_not_be_blank(cls, value: str) -> str:
-        """Reject blank content without altering the caller's raw text."""
-
-        if not value.strip():
-            raise ValueError("content must not be empty or whitespace-only")
-        return value
 
     @field_validator("source_url")
     @classmethod
@@ -57,9 +51,11 @@ class KnowledgeItemCreate(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _url_items_require_a_source_url(self) -> KnowledgeItemCreate:
-        """A URL item is meaningless without the URL it was captured from."""
+    def _validate_source_specific_fields(self) -> KnowledgeItemCreate:
+        """NOTE text must be non-blank; URL items must carry a URL."""
 
+        if self.source_type is SourceType.NOTE and not self.content.strip():
+            raise ValueError("content must not be empty or whitespace-only")
         if self.source_type is SourceType.URL and self.source_url is None:
             raise ValueError("source_url is required when source_type is URL")
         return self

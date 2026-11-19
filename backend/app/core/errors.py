@@ -20,6 +20,7 @@ _ERROR_CODES_BY_STATUS = {
     409: "conflict",
     422: "validation_error",
     429: "too_many_requests",
+    502: "upstream_error",
 }
 
 
