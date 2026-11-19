@@ -1,1 +1,1 @@
-"""Application services. Intentionally empty for Milestone 1."""
+"""Application services orchestrating persistence and business rules."""
