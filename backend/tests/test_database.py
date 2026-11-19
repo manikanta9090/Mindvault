@@ -38,18 +38,18 @@ def test_session_can_be_created_and_closed(tmp_path: Path) -> None:
         database.dispose()
 
 
-def test_init_db_creates_database_file_without_tables(tmp_path: Path) -> None:
+def test_init_db_creates_database_file_and_registered_tables(tmp_path: Path) -> None:
     db_path = tmp_path / "nested" / "mindvault.db"
     database = create_database(f"sqlite:///{db_path.as_posix()}")
     try:
         assert not db_path.exists()
         init_db(database)
         assert db_path.is_file()
-        assert inspect(database.engine).get_table_names() == []
+        assert "knowledge_items" in inspect(database.engine).get_table_names()
 
         # Initialization is safe to repeat.
         init_db(database)
-        assert inspect(database.engine).get_table_names() == []
+        assert "knowledge_items" in inspect(database.engine).get_table_names()
     finally:
         database.dispose()
 

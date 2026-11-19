@@ -81,10 +81,9 @@ def _ensure_sqlite_parent(target_engine: Engine) -> None:
 
 
 def init_db(target: Database | None = None) -> None:
-    """Explicitly create the database file and any registered model tables.
+    """Explicitly create the database file and all registered model tables.
 
-    Called from the application lifespan, not at import time. There are no
-    models in this phase, so no tables are created yet.
+    Called from the application lifespan, not at import time.
     """
 
     active = target if target is not None else database
