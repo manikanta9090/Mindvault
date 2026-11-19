@@ -87,10 +87,12 @@ class KnowledgeItemResponse(BaseModel):
 
 
 class KnowledgeItemListResponse(BaseModel):
-    """A collection of knowledge items with its overall count."""
+    """One page of knowledge items, with the total across all matching rows."""
 
     items: list[KnowledgeItemResponse]
     total: int = Field(ge=0)
+    limit: int = Field(default=20, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
 
     @model_validator(mode="before")
     @classmethod
