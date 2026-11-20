@@ -156,7 +156,7 @@ def test_models_are_registered_before_table_creation(tmp_path: Path) -> None:
         with TestClient(app) as client:
             assert client.get("/health").status_code == 200
 
-    assert tables_at_creation == [{"knowledge_items"}]
+    assert tables_at_creation == [{"knowledge_items", "knowledge_chunks"}]
 
     engine = app.state.database.engine
     inspector = inspect(engine)

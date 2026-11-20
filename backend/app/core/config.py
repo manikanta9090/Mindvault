@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 load_dotenv()
 
@@ -70,6 +70,10 @@ class Settings(BaseModel):
     fetch_timeout_seconds: float = Field(default=10.0, gt=0)
     fetch_max_bytes: int = Field(default=2_000_000, gt=0)
     fetch_max_redirects: int = Field(default=3, ge=0)
+    # Total encoded-token budget, special tokens included. 256 matches the
+    # installed MiniLM-L6-v2 model's max_seq_length.
+    chunk_size_tokens: int = Field(default=256, gt=0)
+    chunk_overlap_tokens: int = Field(default=60, ge=0)
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -95,6 +99,14 @@ class Settings(BaseModel):
             return _resolve_sqlite_url(value)
         return value
 
+    @model_validator(mode="after")
+    def _validate_chunk_settings(self) -> Settings:
+        # An overlap equal to (or larger than) the chunk size would never
+        # advance the chunking window, so reject it at the config boundary.
+        if self.chunk_overlap_tokens >= self.chunk_size_tokens:
+            raise ValueError("chunk_overlap_tokens must be smaller than chunk_size_tokens")
+        return self
+
     @classmethod
     def from_env(cls) -> Settings:
         """Build settings from ``MINDVAULT_*`` environment variables."""
@@ -113,6 +125,8 @@ class Settings(BaseModel):
             fetch_timeout_seconds=float(env("FETCH_TIMEOUT_SECONDS", "10.0")),
             fetch_max_bytes=int(env("FETCH_MAX_BYTES", "2000000")),
             fetch_max_redirects=int(env("FETCH_MAX_REDIRECTS", "3")),
+            chunk_size_tokens=int(env("CHUNK_SIZE_TOKENS", "256")),
+            chunk_overlap_tokens=int(env("CHUNK_OVERLAP_TOKENS", "60")),
         )
 
 
