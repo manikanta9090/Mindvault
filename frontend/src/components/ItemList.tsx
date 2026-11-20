@@ -2,61 +2,38 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   api,
   describeApiError,
-  type IndexingStatus,
+  type IndexingSnapshot,
   type ItemStatus,
   type KnowledgeItemResponse,
   type SourceType,
 } from '../services/api'
-import { StatusBadge } from './StatusBadge'
+import { EmptyState } from './EmptyState'
+import { FilterIcon, InboxIcon, RefreshIcon } from './icons'
+import { KnowledgeCard } from './KnowledgeCard'
+import { Spinner } from './Spinner'
 
 const PAGE_SIZE = 10
-
-type BadgeTone = 'emerald' | 'rose' | 'amber' | 'indigo' | 'slate'
-
-const SOURCE_TONES: Record<SourceType, BadgeTone> = {
-  NOTE: 'indigo',
-  URL: 'emerald',
-}
-
-const ITEM_STATUS_TONES: Record<ItemStatus, BadgeTone> = {
-  PROCESSING: 'amber',
-  COMPLETED: 'emerald',
-  FAILED: 'rose',
-}
-
-const INDEXING_TONES: Record<IndexingStatus, BadgeTone> = {
-  indexed: 'emerald',
-  failed: 'rose',
-  unavailable: 'amber',
-}
-
-const INDEXING_LABELS: Record<IndexingStatus, string> = {
-  indexed: 'Indexed',
-  failed: 'Index failed',
-  unavailable: 'Index unavailable',
-}
-
-interface IndexingSnapshot {
-  status: IndexingStatus
-  errorCode: string | null
-}
 
 interface ItemListProps {
   refreshToken: number
   indexingByItemId: Record<number, IndexingSnapshot>
+  initialSourceType?: SourceType | ''
+  title?: string
+  description?: string
 }
 
-function formatDate(value: string): string {
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.valueOf()) ? value : parsed.toLocaleString()
-}
-
-export function ItemList({ refreshToken, indexingByItemId }: ItemListProps) {
+export function ItemList({
+  refreshToken,
+  indexingByItemId,
+  initialSourceType = '',
+  title = 'Knowledge library',
+  description,
+}: ItemListProps) {
   const [items, setItems] = useState<KnowledgeItemResponse[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [sourceType, setSourceType] = useState<SourceType | ''>('')
+  const [sourceType, setSourceType] = useState<SourceType | ''>(initialSourceType)
   const [status, setStatus] = useState<ItemStatus | ''>('')
   const [offset, setOffset] = useState(0)
   const [reloadToken, setReloadToken] = useState(0)
@@ -118,51 +95,61 @@ export function ItemList({ refreshToken, indexingByItemId }: ItemListProps) {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/20 backdrop-blur-sm sm:p-8">
+    <section className="surface p-5 sm:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-white">Knowledge library</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            {total === 0 ? 'No saved items yet.' : `${total} saved item${total === 1 ? '' : 's'}`}
+          <h2 className="text-lg font-semibold tracking-tight text-ink">{title}</h2>
+          <p className="mt-1 text-sm text-muted">
+            {description ??
+              (total === 0
+                ? 'No saved items yet.'
+                : `${total} saved item${total === 1 ? '' : 's'} in your vault`)}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setReloadToken((value) => value + 1)}
           disabled={loading}
-          className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-indigo-400/50 hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn btn-secondary px-3 py-2 text-xs"
         >
+          <RefreshIcon className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           {loading ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-xs font-semibold tracking-wide text-slate-400 uppercase" htmlFor="filter-source">
+          <label
+            className="block text-xs font-semibold tracking-wide text-faint uppercase"
+            htmlFor="filter-source"
+          >
             Source type
           </label>
           <select
             id="filter-source"
+            className="field mt-2"
             value={sourceType}
             onChange={(event) => changeSourceType(event.target.value as SourceType | '')}
             disabled={loading}
-            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2.5 text-sm text-slate-100 focus:border-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
           >
             <option value="">All sources</option>
             <option value="NOTE">Text notes</option>
-            <option value="URL">URLs</option>
+            <option value="URL">Web pages</option>
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold tracking-wide text-slate-400 uppercase" htmlFor="filter-status">
+          <label
+            className="block text-xs font-semibold tracking-wide text-faint uppercase"
+            htmlFor="filter-status"
+          >
             Item status
           </label>
           <select
             id="filter-status"
+            className="field mt-2"
             value={status}
             onChange={(event) => changeStatus(event.target.value as ItemStatus | '')}
             disabled={loading}
-            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2.5 text-sm text-slate-100 focus:border-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
           >
             <option value="">All statuses</option>
             <option value="COMPLETED">Completed</option>
@@ -175,95 +162,76 @@ export function ItemList({ refreshToken, indexingByItemId }: ItemListProps) {
       {error && (
         <div
           role="alert"
-          className="mt-5 rounded-xl border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm leading-6 text-rose-100"
+          className="mt-5 rounded-xl border border-bad/25 bg-bad/10 px-4 py-3 text-sm leading-6 text-bad"
         >
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/40 px-5 py-10 text-sm text-slate-400" role="status">
-          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.3" strokeWidth="3" />
-            <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-          </svg>
-          Loading your library…
+        <div
+          className="mt-6 grid gap-4 lg:grid-cols-2"
+          role="status"
+          aria-label="Loading your library"
+        >
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="surface-quiet h-52 animate-pulse p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-line" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-2/3 rounded bg-line" />
+                  <div className="h-2.5 w-1/3 rounded bg-line/70" />
+                </div>
+              </div>
+              <div className="mt-5 h-5 w-3/4 rounded-full bg-line/80" />
+              <div className="mt-4 space-y-2">
+                <div className="h-2.5 w-full rounded bg-line/70" />
+                <div className="h-2.5 w-11/12 rounded bg-line/70" />
+                <div className="h-2.5 w-4/6 rounded bg-line/70" />
+              </div>
+            </div>
+          ))}
+          <span className="sr-only">
+            <Spinner /> Loading your library…
+          </span>
         </div>
       ) : items.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-950/30 px-5 py-12 text-center">
-          <p className="text-sm font-medium text-slate-200">No items match these filters</p>
-          <p className="mt-2 text-sm text-slate-500">
-            Save a note or URL from the Capture tab to see it here.
-          </p>
+        <div className="mt-6">
+          <EmptyState
+            icon={<InboxIcon className="h-5 w-5" />}
+            title="Nothing here yet"
+            description={
+              sourceType || status
+                ? 'No items match these filters. Try a different source type or status.'
+                : 'Save a note or URL to start building your knowledge library.'
+            }
+          />
         </div>
       ) : (
         <ul className="mt-6 grid gap-4 lg:grid-cols-2">
-          {items.map((item) => {
-            const indexing = indexingByItemId[item.id]
-            return (
-              <li
-                key={item.id}
-                className="rounded-2xl border border-white/10 bg-slate-950/40 p-5 transition hover:border-indigo-400/25"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="truncate text-sm font-semibold text-white" title={item.title ?? undefined}>
-                      {item.title || 'Untitled item'}
-                    </h3>
-                    <p className="mt-1 text-xs text-slate-500">Created {formatDate(item.created_at)}</p>
-                  </div>
-                  <span className="text-xs font-medium text-slate-500">#{item.id}</span>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <StatusBadge tone={SOURCE_TONES[item.source_type]}>{item.source_type}</StatusBadge>
-                  <StatusBadge tone={ITEM_STATUS_TONES[item.status]}>{item.status}</StatusBadge>
-                  <StatusBadge
-                    tone={indexing ? INDEXING_TONES[indexing.status] : 'slate'}
-                    title="GET /items does not expose indexing status. Recent captures are shown here."
-                  >
-                    {indexing ? INDEXING_LABELS[indexing.status] : 'Index unknown'}
-                  </StatusBadge>
-                </div>
-
-                {item.source_url && (
-                  <a
-                    href={item.source_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-4 block truncate text-xs text-indigo-300 underline-offset-4 hover:underline"
-                  >
-                    {item.source_url}
-                  </a>
-                )}
-
-                <p className="mt-4 line-clamp-3 text-xs leading-6 text-slate-400">{item.content}</p>
-
-                {indexing?.errorCode && (
-                  <p className="mt-3 text-xs text-slate-500">
-                    Indexing error: <code className="text-slate-300">{indexing.errorCode}</code>
-                  </p>
-                )}
-              </li>
-            )
-          })}
+          {items.map((item) => (
+            <li key={item.id}>
+              <KnowledgeCard item={item} indexing={indexingByItemId[item.id]} />
+            </li>
+          ))}
         </ul>
       )}
 
       {!loading && total > 0 && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
-          <p className="text-xs text-slate-500">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
+          <p className="inline-flex items-center gap-2 text-xs text-faint">
+            <FilterIcon className="h-3.5 w-3.5" />
             Showing {firstItem}–{lastItem} of {total}
           </p>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <span className="mr-1 text-xs text-faint">
               Page {pageNumber} of {pageCount}
             </span>
             <button
               type="button"
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
               disabled={offset === 0 || loading}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-indigo-400/50 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn btn-secondary px-3 py-1.5 text-xs"
             >
               Previous
             </button>
@@ -271,7 +239,7 @@ export function ItemList({ refreshToken, indexingByItemId }: ItemListProps) {
               type="button"
               onClick={() => setOffset(offset + PAGE_SIZE)}
               disabled={offset + PAGE_SIZE >= total || loading}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-indigo-400/50 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn btn-secondary px-3 py-1.5 text-xs"
             >
               Next
             </button>

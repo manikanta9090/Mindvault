@@ -4,6 +4,12 @@ export type SourceType = 'NOTE' | 'URL'
 export type ItemStatus = 'PROCESSING' | 'COMPLETED' | 'FAILED'
 export type IndexingStatus = 'indexed' | 'failed' | 'unavailable'
 
+/** Frontend-local view of the indexing result returned by POST /ingest. */
+export interface IndexingSnapshot {
+  status: IndexingStatus
+  errorCode: string | null
+}
+
 export interface HealthResponse {
   status: string
   application: string
@@ -79,7 +85,7 @@ interface ApiErrorBody {
   }
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(
   /\/$/,
   '',
 )
