@@ -46,7 +46,10 @@ EXPECTED_INDEXES = {
 def _settings(tmp_path: Path, name: str = "integration.db") -> Settings:
     """Point an application at a throwaway SQLite file under ``tmp_path``."""
 
-    return Settings(database_url=f"sqlite:///{tmp_path.joinpath(name).as_posix()}")
+    return Settings(
+        database_url=f"sqlite:///{tmp_path.joinpath(name).as_posix()}",
+        chroma_path=tmp_path / f"chroma-{name}",
+    )
 
 
 # ---------------------------------------------------------------------------

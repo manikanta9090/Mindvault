@@ -1,23 +1,23 @@
 """Indexing service that turns one completed item into persisted chunks.
 
-The SQL database stores the chunk text, its SHA-256 hash, token count, and the
-embedding model/dimension used for it. The vector itself is validated by the
-embedding service and handed to the future vector-store phase; there is
-deliberately no vector column or ChromaDB access in this phase.
+The SQL database remains the source of truth: it stores each chunk's text,
+SHA-256 hash, token count, and embedding metadata. When a vector store is
+supplied, the same chunks are upserted into ChromaDB by stable ID, and only
+then are their SQL rows moved to ``INDEXED`` with their ``chroma_id`` recorded.
+Without a vector store, chunk rows remain ``PENDING`` as in Phase 4.1.
 
-Re-indexing is idempotent: when the computed chunk set matches what is already
-stored, existing rows (and their statuses) are returned untouched. If the
-source content or settings change, obsolete rows are replaced inside one
-transaction, so a failure rolls the item back to its previous state. Chunk
-boundaries come from the embedding model's own tokenizer when available, so
-each chunk respects the model's sequence limit including special tokens.
+Re-indexing is idempotent. Unchanged content does not rewrite SQL rows,
+regenerate embeddings, or downgrade existing ``INDEXED`` statuses; it only
+completes vector storage for rows that are still pending. Changed content is
+replaced in one SQL transaction, and stale vectors are cleaned up after the
+new vectors are stored safely.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from hashlib import sha256
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -35,6 +35,10 @@ from app.services.embeddings import (
     embed_texts,
     get_embedder,
 )
+from app.services.vector_store import VectorStoreError, stable_chroma_id
+
+if TYPE_CHECKING:  # pragma: no cover - imported only for static typing
+    from app.services.vector_store import VectorStore
 
 
 class IndexingError(AppError):
@@ -89,8 +93,9 @@ def _resolve_item(session: Session, item: KnowledgeItem | int) -> KnowledgeItem:
 def _state(records: list[KnowledgeChunk]) -> list[tuple[object, ...]]:
     """Content-based projection used to detect an unchanged chunk set.
 
-    ``status`` is deliberately excluded: a later phase may mark chunks INDEXED,
-    and re-indexing identical content must not downgrade them to PENDING.
+    ``status`` and ``chroma_id`` are deliberately excluded: vector storage is a
+    later step, and re-indexing identical content must not downgrade or renumber
+    chunks that were already indexed.
     """
 
     return [
@@ -117,6 +122,107 @@ def _stored_chunks(session: Session, item_id: int) -> list[KnowledgeChunk]:
     return list(session.scalars(statement).all())
 
 
+def _metadata(item: KnowledgeItem, chunk: KnowledgeChunk) -> dict[str, Any]:
+    """Build Chroma metadata, omitting no-value fields Chroma cannot store."""
+
+    source_type = getattr(item.source_type, "value", item.source_type)
+    item_status = getattr(item.status, "value", item.status)
+    return {
+        "knowledge_item_id": int(item.id),
+        "knowledge_chunk_id": int(chunk.id),
+        "chunk_index": int(chunk.chunk_index),
+        "content_hash": chunk.content_hash,
+        "embedding_model": chunk.embedding_model or EMBEDDING_MODEL_NAME,
+        "dimension": int(chunk.dimension or EMBEDDING_DIMENSION),
+        "title": item.title or "",
+        "source_type": str(source_type),
+        "source_url": item.source_url or "",
+        "item_status": str(item_status),
+    }
+
+
+def _pending_records(
+    records: list[KnowledgeChunk],
+) -> list[tuple[int, KnowledgeChunk]]:
+    """Return indexed positions of rows that still need vector storage."""
+
+    return [
+        (index, record)
+        for index, record in enumerate(records)
+        if record.status is not ChunkStatus.INDEXED or not record.chroma_id
+    ]
+
+
+def _cleanup_stale(
+    vector_store: VectorStore,
+    item: KnowledgeItem,
+    keep_ids: set[str],
+) -> None:
+    """Best-effort removal of superseded vectors; retrieval also guards them."""
+
+    try:
+        vector_store.delete_stale(int(item.id), keep_ids)
+    except VectorStoreError as exc:
+        logger.warning(
+            "stale_vector_cleanup_failed",
+            extra={"item_id": item.id, "exception_type": type(exc).__name__},
+        )
+
+
+def _persist_vectors(
+    session: Session,
+    item: KnowledgeItem,
+    records: list[KnowledgeChunk],
+    vector_store: VectorStore,
+    embedder: Embedder | None,
+    vectors: list[list[float]] | None,
+) -> list[KnowledgeChunk]:
+    """Upsert pending chunks, then mark them INDEXED in SQLite."""
+
+    pending = _pending_records(records)
+    keep_ids = {
+        record.chroma_id
+        for record in records
+        if record.status is ChunkStatus.INDEXED and record.chroma_id
+    }
+
+    if not pending:
+        _cleanup_stale(vector_store, item, keep_ids)
+        return records
+
+    if vectors is not None:
+        if len(vectors) != len(records):
+            raise IndexingError(details={"item_id": item.id})
+        selected_vectors = [vectors[index] for index, _ in pending]
+    else:
+        selected_vectors = embed_texts(
+            [record.text for _, record in pending], embedder=embedder
+        )
+
+    pending_records = [record for _, record in pending]
+    ids = [
+        stable_chroma_id(int(item.id), record.chunk_index, record.content_hash)
+        for record in pending_records
+    ]
+    vector_store.upsert(
+        ids=ids,
+        embeddings=selected_vectors,
+        documents=[record.text for record in pending_records],
+        metadatas=[_metadata(item, record) for record in pending_records],
+    )
+
+    # SQL is updated only after Chroma accepted every vector. A later SQL
+    # failure leaves rows PENDING; a retry upserts the same stable IDs.
+    for record, vector_id in zip(pending_records, ids):
+        record.chroma_id = vector_id
+        record.status = ChunkStatus.INDEXED
+    session.commit()
+
+    keep_ids.update(ids)
+    _cleanup_stale(vector_store, item, keep_ids)
+    return records
+
+
 def index_knowledge_item(
     session: Session,
     item: KnowledgeItem | int,
@@ -124,15 +230,18 @@ def index_knowledge_item(
     settings: Settings | None = None,
     embedder: Embedder | None = None,
     chunker: Callable[..., list[TextChunk]] | None = None,
+    vector_store: VectorStore | None = None,
 ) -> list[KnowledgeChunk]:
     """Chunk, embed, and persist one completed knowledge item.
 
     ``embedder`` may be injected for offline tests; ``chunker`` is the
     :func:`~app.services.chunking.chunk_text` function by default. When the
     embedder exposes a tokenizer and a sequence limit, those are passed to the
-    chunker so chunk boundaries respect the model's real tokenization. The
-    returned chunks are the rows actually stored for the item, ordered by chunk
-    index.
+    chunker so chunk boundaries respect the model's real tokenization.
+
+    Passing ``vector_store`` enables Phase 4.2 persistence: vectors are stored
+    in ChromaDB and the corresponding SQL rows are marked ``INDEXED``. Without
+    it, this retains the Phase 4.1 behavior of only persisting chunk rows.
     """
 
     active_settings = settings or get_settings()
@@ -146,6 +255,7 @@ def index_knowledge_item(
             details={"item_id": knowledge_item.id, "status": status_value}
         )
 
+    vectors: list[list[float]] | None = None
     try:
         chunk_options: dict[str, Any] = {
             "chunk_size": active_settings.chunk_size_tokens,
@@ -162,8 +272,6 @@ def index_knowledge_item(
                 )
 
         chunks: list[TextChunk] = active_chunker(knowledge_item.content, **chunk_options)
-        vectors = embed_texts([chunk.text for chunk in chunks], embedder=active_embedder)
-
         desired = [
             KnowledgeChunk(
                 knowledge_item_id=knowledge_item.id,
@@ -175,23 +283,35 @@ def index_knowledge_item(
                 dimension=EMBEDDING_DIMENSION,
                 status=ChunkStatus.PENDING,
             )
-            for index, (chunk, _vector) in enumerate(zip(chunks, vectors))
+            for index, chunk in enumerate(chunks)
         ]
 
         existing = _stored_chunks(session, knowledge_item.id)
         if _state(existing) == _state(desired):
-            # Idempotent path: no writes, no new rows, no changed timestamps,
-            # and existing statuses (including INDEXED) are preserved.
-            return existing
+            # No SQL writes and no new embeddings for unchanged content.
+            records = existing
+        else:
+            vectors = embed_texts([chunk.text for chunk in chunks], embedder=active_embedder)
+            session.execute(
+                delete(KnowledgeChunk).where(
+                    KnowledgeChunk.knowledge_item_id == knowledge_item.id
+                )
+            )
+            if desired:
+                session.add_all(desired)
+            session.commit()
+            records = _stored_chunks(session, knowledge_item.id)
 
-        session.execute(
-            delete(KnowledgeChunk).where(KnowledgeChunk.knowledge_item_id == knowledge_item.id)
-        )
-        if desired:
-            session.add_all(desired)
-        session.commit()
-
-        return _stored_chunks(session, knowledge_item.id)
+        if vector_store is not None:
+            records = _persist_vectors(
+                session,
+                knowledge_item,
+                records,
+                vector_store,
+                active_embedder,
+                vectors,
+            )
+        return records
     except AppError:
         session.rollback()
         raise

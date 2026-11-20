@@ -5,10 +5,10 @@ pydantic==2.14.3
 SQLAlchemy==2.1.9
 python-dotenv==1.2.4
 beautifulsoup4==4.14.3  # tolerant HTML parsing for readable-text extraction
+httpx2==2.16.2  # HTTP client for URL fetching and Groq-compatible completions
 
-# Testing (Starlette's TestClient uses httpx2)
+# Testing (Starlette's TestClient also uses httpx2)
 pytest==9.2.0
-httpx2==2.16.2
 
 # Phase 4.0A — semantic/vector dependencies
 chromadb==1.5.9

@@ -29,6 +29,9 @@ RESPONSE_FIELDS = {
     "status",
     "created_at",
     "updated_at",
+    "indexing_status",
+    "indexed_chunk_count",
+    "indexing_error_code",
 }
 NOTE_PAYLOAD: dict[str, Any] = {
     "title": "Understanding Node.js",
@@ -59,6 +62,9 @@ def test_ingest_note_returns_201_with_expected_response(client: TestClient) -> N
     assert payload["source_type"] == "NOTE"
     assert payload["source_url"] is None
     assert payload["status"] == "COMPLETED"
+    assert payload["indexing_status"] == "indexed"
+    assert payload["indexed_chunk_count"] == 1
+    assert payload["indexing_error_code"] is None
     assert isinstance(payload["created_at"], str)
     assert isinstance(payload["updated_at"], str)
 
@@ -218,6 +224,7 @@ def test_service_rejects_non_note_payload(tmp_path: Path) -> None:
 def test_ingest_rolls_back_on_persistence_failure(tmp_path: Path) -> None:
     settings = Settings(
         database_url=f"sqlite:///{tmp_path.joinpath('rollback.db').as_posix()}",
+        chroma_path=tmp_path / "chroma-rollback",
     )
     app = create_app(settings)
     database: Database = app.state.database

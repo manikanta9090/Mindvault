@@ -86,6 +86,22 @@ class KnowledgeItemResponse(BaseModel):
         return value.value
 
 
+class IngestResponse(KnowledgeItemResponse):
+    """Ingestion result: the saved item plus independent indexing status.
+
+    ``status`` continues to describe the persisted item. ``indexing_status``
+    distinguishes automatic search indexing from successful ingestion:
+
+    * ``indexed`` — chunks were created and vectors are searchable.
+    * ``failed`` — the item is saved, but indexing failed; retry is safe.
+    * ``unavailable`` — no vector store was available for this request.
+    """
+
+    indexing_status: str
+    indexed_chunk_count: int | None = Field(default=None, ge=0)
+    indexing_error_code: str | None = None
+
+
 class KnowledgeItemListResponse(BaseModel):
     """One page of knowledge items, with the total across all matching rows."""
 

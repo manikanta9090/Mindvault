@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.main import create_app
+from tests.phase44_helpers import KeywordEmbedder
 
 
 @pytest.fixture
@@ -20,6 +21,10 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
     settings = Settings(
         cors_origins=("http://localhost:5173",),
         database_url=f"sqlite:///{db_path.as_posix()}",
+        chroma_path=tmp_path / "chroma",
     )
-    with TestClient(create_app(settings)) as test_client:
+    app = create_app(settings)
+    # Keep automatic indexing offline and deterministic for every API test.
+    app.state.embedder = KeywordEmbedder()
+    with TestClient(app) as test_client:
         yield test_client

@@ -102,10 +102,16 @@ def test_url_ingestion_returns_201_with_expected_response(
         "status",
         "created_at",
         "updated_at",
+        "indexing_status",
+        "indexed_chunk_count",
+        "indexing_error_code",
     }
     assert payload["id"] > 0
     assert payload["source_type"] == "URL"
     assert payload["status"] == "COMPLETED"
+    assert payload["indexing_status"] == "indexed"
+    assert payload["indexed_chunk_count"] == 1
+    assert payload["indexing_error_code"] is None
     assert payload["source_url"] == URL_PAYLOAD["source_url"]
     assert fetcher.calls == [URL_PAYLOAD["source_url"]]
 

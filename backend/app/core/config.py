@@ -1,7 +1,7 @@
 """Environment-based application configuration.
 
-Secrets are intentionally not represented here. Settings contains only values
-that are safe to hold in application state; no endpoint returns this object.
+The only secret held here is the optional Groq key, stored as ``SecretStr`` and
+excluded from ``repr``/serialization. No endpoint returns ``Settings``.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
 load_dotenv()
 
@@ -24,6 +24,29 @@ _TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 # backend/app/core/config.py -> backend/app/core -> app -> backend -> repository root.
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_DATABASE_URL = "sqlite:///./storage/mindvault.db"
+DEFAULT_CHROMA_PATH = "./storage/chroma"
+DEFAULT_CHROMA_COLLECTION = "mindvault_chunks"
+DEFAULT_RETRIEVAL_TOP_K = 8
+
+# Verified against Groq's official supported-models list on 2026-11-20:
+# openai/gpt-oss-20b is listed as a production model. Override with
+# MINDVAULT_LLM_MODEL if the account or Groq's catalogue changes.
+LLM_PROVIDER_GROQ = "groq"
+DEFAULT_LLM_MODEL = "openai/gpt-oss-20b"
+DEFAULT_LLM_TIMEOUT_SECONDS = 30.0
+DEFAULT_LLM_CONTEXT_MAX_CHARS = 12_000
+
+
+def _resolve_path(value: str | Path) -> Path:
+    """Anchor a relative filesystem path to the repository root.
+
+    This mirrors :func:`_resolve_sqlite_url`: Uvicorn may be launched from
+    either ``backend/`` or the repository root, and both must resolve to the
+    same on-disk location. Absolute paths are left untouched.
+    """
+
+    path = Path(value)
+    return path if path.is_absolute() else (PROJECT_ROOT / path).resolve()
 
 
 def _resolve_sqlite_url(value: str) -> str:
@@ -74,6 +97,14 @@ class Settings(BaseModel):
     # installed MiniLM-L6-v2 model's max_seq_length.
     chunk_size_tokens: int = Field(default=256, gt=0)
     chunk_overlap_tokens: int = Field(default=60, ge=0)
+    chroma_path: Path = Field(default=Path(DEFAULT_CHROMA_PATH), validate_default=True)
+    chroma_collection_name: str = Field(default=DEFAULT_CHROMA_COLLECTION, min_length=1)
+    retrieval_top_k: int = Field(default=DEFAULT_RETRIEVAL_TOP_K, gt=0)
+    llm_provider: str = Field(default=LLM_PROVIDER_GROQ, min_length=1)
+    groq_api_key: SecretStr | None = Field(default=None, repr=False, exclude=True)
+    llm_model: str = Field(default=DEFAULT_LLM_MODEL, min_length=1)
+    llm_timeout_seconds: float = Field(default=DEFAULT_LLM_TIMEOUT_SECONDS, gt=0)
+    llm_context_max_chars: int = Field(default=DEFAULT_LLM_CONTEXT_MAX_CHARS, gt=0)
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -98,6 +129,25 @@ class Settings(BaseModel):
         if isinstance(value, str):
             return _resolve_sqlite_url(value)
         return value
+
+    @field_validator("chroma_path", mode="before")
+    @classmethod
+    def _normalize_chroma_path(cls, value: object) -> object:
+        if isinstance(value, (str, Path)):
+            return _resolve_path(value)
+        return value
+
+    @field_validator("llm_provider", "llm_model", mode="before")
+    @classmethod
+    def _normalize_llm_text(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @field_validator("llm_provider", mode="after")
+    @classmethod
+    def _normalize_llm_provider(cls, value: str) -> str:
+        return value.lower()
 
     @model_validator(mode="after")
     def _validate_chunk_settings(self) -> Settings:
@@ -127,6 +177,18 @@ class Settings(BaseModel):
             fetch_max_redirects=int(env("FETCH_MAX_REDIRECTS", "3")),
             chunk_size_tokens=int(env("CHUNK_SIZE_TOKENS", "256")),
             chunk_overlap_tokens=int(env("CHUNK_OVERLAP_TOKENS", "60")),
+            chroma_path=env("CHROMA_PATH", DEFAULT_CHROMA_PATH),
+            chroma_collection_name=env("CHROMA_COLLECTION", DEFAULT_CHROMA_COLLECTION),
+            retrieval_top_k=int(env("RETRIEVAL_TOP_K", str(DEFAULT_RETRIEVAL_TOP_K))),
+            llm_provider=env("LLM_PROVIDER", LLM_PROVIDER_GROQ),
+            groq_api_key=env("GROQ_API_KEY", "") or None,
+            llm_model=env("LLM_MODEL", DEFAULT_LLM_MODEL),
+            llm_timeout_seconds=float(
+                env("LLM_TIMEOUT", str(DEFAULT_LLM_TIMEOUT_SECONDS))
+            ),
+            llm_context_max_chars=int(
+                env("LLM_CONTEXT_MAX_CHARS", str(DEFAULT_LLM_CONTEXT_MAX_CHARS))
+            ),
         )
 
 

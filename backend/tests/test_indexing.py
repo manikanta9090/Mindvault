@@ -149,8 +149,9 @@ def test_repeated_indexing_does_not_create_duplicates(
     assert [chunk.id for chunk in second] == first_ids
     assert [chunk.updated_at for chunk in second] == first_updated
     assert len(_stored(database, item_id)) == 2
-    # The second pass still computes/embeds the same chunks, but writes nothing.
-    assert len(embedder.calls) == 2
+    # An unchanged chunk set is detected before embedding, so the second pass
+    # writes nothing and does not re-run the model.
+    assert len(embedder.calls) == 1
 
 
 def test_reindex_replaces_obsolete_chunks(database: Database, settings: Settings) -> None:

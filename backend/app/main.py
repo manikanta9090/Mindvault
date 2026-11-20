@@ -14,6 +14,7 @@ from app.core.database import create_database, init_db
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, logger
 from app.core.middleware import request_logging_middleware
+from app.services.vector_store import close_vector_store, connect_vector_store
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -24,12 +25,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     database = create_database(settings.database_url)
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         init_db(database)
         logger.info(
             "database_initialized",
             extra={"backend": database.engine.url.get_backend_name()},
         )
+        connect_vector_store(application)
         logger.info(
             "application_started",
             extra={"environment": settings.environment, "version": settings.version},
@@ -37,8 +39,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             yield
         finally:
-            # Always release the engine, including when shutdown is abnormal.
+            # Always release resources, including when shutdown is abnormal.
             logger.info("application_stopped")
+            close_vector_store(application)
             database.dispose()
 
     docs_url = "/docs" if settings.docs_enabled else None
@@ -54,6 +57,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.state.settings = settings
     app.state.database = database
+    # Chroma is opened by the lifespan, never by module import or create_app().
+    app.state.vector_store = None
+    app.state.chroma_client = None
+    app.state.chroma_collection = None
+    # Optional injection points for tests; production embedder/provider are
+    # resolved lazily when None.
+    app.state.llm_provider = None
+    app.state.embedder = None
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
