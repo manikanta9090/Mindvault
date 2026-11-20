@@ -38,11 +38,6 @@ def _assert_source_preserved(chunks: list[TextChunk], source: str) -> None:
         ), f"source word {match.group()!r} was dropped"
 
 
-# ---------------------------------------------------------------------------
-# Defaults and validation
-# ---------------------------------------------------------------------------
-
-
 def test_defaults_match_minilm_sequence_limit() -> None:
     assert DEFAULT_CHUNK_SIZE_TOKENS == 256
     assert DEFAULT_CHUNK_OVERLAP_TOKENS == 60
@@ -79,11 +74,6 @@ def test_special_tokens_must_leave_room_for_content() -> None:
 def test_empty_or_whitespace_input_produces_no_chunks(text: str) -> None:
     assert chunk_text(text) == []
     assert chunk_text(text, tokenizer=WordTokenizer(), max_seq_length=10) == []
-
-
-# ---------------------------------------------------------------------------
-# Tokenizer limit, including special tokens
-# ---------------------------------------------------------------------------
 
 
 def test_chunks_never_exceed_model_sequence_limit() -> None:
@@ -154,11 +144,6 @@ def test_overlap_is_preserved_in_content_tokens() -> None:
     assert first_words[-2:] == second_words[:2]
 
 
-# ---------------------------------------------------------------------------
-# Long, code-like, punctuation-heavy, and pathological text
-# ---------------------------------------------------------------------------
-
-
 def test_long_text_is_ordered_bounded_and_not_truncated() -> None:
     tokenizer = WordTokenizer()
     words = [f"token{index}" for index in range(1000)]
@@ -214,11 +199,6 @@ def test_single_long_word_with_burst_tokenizer_is_subdivided() -> None:
         for index in range(1, len(chunks))
     )
     assert "".join(chunk.text for chunk in chunks) == text
-
-
-# ---------------------------------------------------------------------------
-# Fallback and configurable wrapper
-# ---------------------------------------------------------------------------
 
 
 def test_word_based_fallback_still_produces_overlapping_chunks() -> None:

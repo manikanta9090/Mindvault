@@ -89,11 +89,6 @@ def _stored(database: Database, item_id: int) -> list[KnowledgeChunk]:
         )
 
 
-# ---------------------------------------------------------------------------
-# Successful persistence
-# ---------------------------------------------------------------------------
-
-
 def test_index_persists_chunks_with_metadata(database: Database, settings: Settings) -> None:
     embedder = FakeEmbedder()
     with database.session_factory() as session:
@@ -126,11 +121,6 @@ def test_index_accepts_an_item_instance(database: Database, settings: Settings) 
         chunks = index_knowledge_item(session, item, settings=settings, embedder=FakeEmbedder())
 
     assert [chunk.text for chunk in chunks] == ["short content"]
-
-
-# ---------------------------------------------------------------------------
-# Idempotency and replacement
-# ---------------------------------------------------------------------------
 
 
 def test_repeated_indexing_does_not_create_duplicates(
@@ -185,11 +175,6 @@ def test_empty_content_removes_obsolete_chunks(database: Database, settings: Set
         item_id = item.id
 
     assert _stored(database, item_id) == []
-
-
-# ---------------------------------------------------------------------------
-# Validation and failure handling
-# ---------------------------------------------------------------------------
 
 
 def test_rejects_non_completed_item(database: Database, settings: Settings) -> None:
@@ -250,11 +235,6 @@ def test_embedding_failure_rolls_back_without_persisting(
 
     rollback.assert_called_once_with()
     assert _stored(database, item_id) == []
-
-
-# ---------------------------------------------------------------------------
-# Tokenizer integration and status preservation
-# ---------------------------------------------------------------------------
 
 
 def test_indexing_uses_embedder_tokenizer_and_sequence_limit(database: Database) -> None:

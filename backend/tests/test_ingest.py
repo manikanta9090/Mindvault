@@ -45,11 +45,6 @@ def _stored_items(database: Database) -> list[KnowledgeItem]:
         return list(session.scalars(select(KnowledgeItem).order_by(KnowledgeItem.id)).all())
 
 
-# ---------------------------------------------------------------------------
-# Successful ingestion
-# ---------------------------------------------------------------------------
-
-
 def test_ingest_note_returns_201_with_expected_response(client: TestClient) -> None:
     response = client.post("/ingest", json=NOTE_PAYLOAD)
 
@@ -132,11 +127,6 @@ def test_ingest_is_present_in_openapi_schema(client: TestClient) -> None:
     assert "post" in schema["paths"]["/ingest"]
 
 
-# ---------------------------------------------------------------------------
-# Validation and rejection
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize("content", ["", "   ", "\n\t\r "])
 def test_ingest_rejects_empty_or_whitespace_content(client: TestClient, content: str) -> None:
     response = client.post("/ingest", json={"content": content, "source_type": "NOTE"})
@@ -176,11 +166,6 @@ def test_ingest_rejects_request_without_source_type(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
-
-
-# ---------------------------------------------------------------------------
-# Service behaviour and rollback
-# ---------------------------------------------------------------------------
 
 
 def test_service_persists_completed_note_and_refreshes(tmp_path: Path) -> None:

@@ -61,11 +61,6 @@ def _chunk(
     )
 
 
-# ---------------------------------------------------------------------------
-# Table creation and columns
-# ---------------------------------------------------------------------------
-
-
 def test_init_db_creates_knowledge_chunks_table(database: Database) -> None:
     inspector = inspect(database.engine)
 
@@ -128,11 +123,6 @@ def test_required_fields_reject_null(database: Database, field: str) -> None:
         session.rollback()
 
 
-# ---------------------------------------------------------------------------
-# Foreign key and relationship
-# ---------------------------------------------------------------------------
-
-
 def test_foreign_key_targets_knowledge_items_with_cascade(database: Database) -> None:
     foreign_keys = inspect(database.engine).get_foreign_keys("knowledge_chunks")
 
@@ -153,11 +143,6 @@ def test_chunk_exposes_relationship_to_its_knowledge_item(database: Database) ->
         assert chunk.knowledge_item is item
         assert chunk.knowledge_item.id == item.id
         assert chunk.knowledge_item.content == "parent item"
-
-
-# ---------------------------------------------------------------------------
-# Cascade delete
-# ---------------------------------------------------------------------------
 
 
 def test_deleting_item_cascades_to_chunks_via_orm(database: Database) -> None:
@@ -188,11 +173,6 @@ def test_deleting_item_cascades_to_chunks_via_database(database: Database) -> No
 
     with database.session_factory() as session:
         assert session.scalars(select(KnowledgeChunk)).all() == []
-
-
-# ---------------------------------------------------------------------------
-# Enum values and default status
-# ---------------------------------------------------------------------------
 
 
 def test_chunk_status_enum_values() -> None:
@@ -248,11 +228,6 @@ def test_status_check_constraint_rejects_unknown_value(database: Database) -> No
         )
 
 
-# ---------------------------------------------------------------------------
-# Nullable embedding and vector fields
-# ---------------------------------------------------------------------------
-
-
 def test_embedding_and_vector_fields_are_nullable(database: Database) -> None:
     with database.session_factory() as session:
         item = _item(session)
@@ -288,11 +263,6 @@ def test_embedding_and_vector_fields_can_be_populated(database: Database) -> Non
         assert stored.dimension == 384
         assert stored.chroma_id == "chroma-uuid-1"
         assert stored.status is ChunkStatus.INDEXED
-
-
-# ---------------------------------------------------------------------------
-# Indexes and uniqueness
-# ---------------------------------------------------------------------------
 
 
 def test_indexes_and_unique_constraint_are_created(database: Database) -> None:
@@ -333,11 +303,6 @@ def test_same_index_with_different_hash_is_allowed(database: Database) -> None:
 
     with database.session_factory() as session:
         assert len(session.scalars(select(KnowledgeChunk)).all()) == 2
-
-
-# ---------------------------------------------------------------------------
-# Timestamps
-# ---------------------------------------------------------------------------
 
 
 def test_timestamps_default_to_utc_now(database: Database) -> None:
@@ -384,11 +349,6 @@ def test_updated_at_changes_when_chunk_is_modified(database: Database) -> None:
     assert changed_updated_at > PAST
     assert changed_updated_at >= before_change
     assert _as_utc(chunk.created_at) == original_created_at
-
-
-# ---------------------------------------------------------------------------
-# Multiple chunks per item
-# ---------------------------------------------------------------------------
 
 
 def test_multiple_chunks_belong_to_one_knowledge_item(database: Database) -> None:

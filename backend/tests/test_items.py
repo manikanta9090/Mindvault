@@ -69,11 +69,6 @@ def _ids(payload: dict[str, Any]) -> list[int]:
     return [item["id"] for item in payload["items"]]
 
 
-# ---------------------------------------------------------------------------
-# 1-3. Empty, single, and mixed content
-# ---------------------------------------------------------------------------
-
-
 def test_list_empty_database(client: TestClient) -> None:
     response = client.get("/items")
 
@@ -118,11 +113,6 @@ def test_list_multiple_notes_and_urls(client: TestClient) -> None:
     assert len(payload["items"]) == 4
     assert [item["source_type"] for item in payload["items"]].count("NOTE") == 2
     assert [item["source_type"] for item in payload["items"]].count("URL") == 2
-
-
-# ---------------------------------------------------------------------------
-# 4-7. Pagination and totals
-# ---------------------------------------------------------------------------
 
 
 def test_default_pagination(client: TestClient) -> None:
@@ -185,11 +175,6 @@ def test_offset_beyond_available_records(client: TestClient) -> None:
     assert payload["items"] == []
     assert payload["total"] == 2
     assert payload["offset"] == 999
-
-
-# ---------------------------------------------------------------------------
-# 8-11. Filters
-# ---------------------------------------------------------------------------
 
 
 def test_source_type_filter_note(client: TestClient) -> None:
@@ -281,11 +266,6 @@ def test_combined_filters_apply_before_total(client: TestClient) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# 12-15. Validation errors
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize("limit", [0, -1, 101, 1000, "abc"])
 def test_invalid_limit_returns_422(client: TestClient, limit: object) -> None:
     response = client.get("/items", params={"limit": limit})
@@ -327,11 +307,6 @@ def test_maximum_allowed_limit_is_accepted(client: TestClient) -> None:
     assert response.json()["limit"] == 100
 
 
-# ---------------------------------------------------------------------------
-# 16. Ordering
-# ---------------------------------------------------------------------------
-
-
 def test_newest_first_with_stable_id_tiebreaker(client: TestClient) -> None:
     ids = _seed(
         client,
@@ -354,11 +329,6 @@ def test_stable_ordering_when_timestamps_match(client: TestClient) -> None:
     payload = client.get("/items").json()
 
     assert _ids(payload) == list(reversed(ids))
-
-
-# ---------------------------------------------------------------------------
-# Architecture and integration checks
-# ---------------------------------------------------------------------------
 
 
 def test_listing_issues_exactly_two_paginated_queries(client: TestClient) -> None:

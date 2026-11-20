@@ -84,7 +84,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    // Initial health fetch is an external-system sync; state is only set after the await.
+    // Async fetch updates state after the request settles.
     // oxlint-disable-next-line react/set-state-in-effect
     void checkConnection()
   }, [checkConnection])
@@ -101,7 +101,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    // Item count is an external-system sync used only for sidebar context.
+    // Async fetch updates state after the request settles.
     // oxlint-disable-next-line react/set-state-in-effect
     const requestId = ++countRequestIdRef.current
     void api

@@ -52,11 +52,6 @@ def _settings(tmp_path: Path, name: str = "integration.db") -> Settings:
     )
 
 
-# ---------------------------------------------------------------------------
-# Database integration through the application
-# ---------------------------------------------------------------------------
-
-
 def test_startup_initializes_database_and_creates_table(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     app = create_app(settings)
@@ -140,11 +135,6 @@ def test_url_item_round_trip_through_app_database(tmp_path: Path) -> None:
     assert response.content == "<p>raw markup</p>"
 
 
-# ---------------------------------------------------------------------------
-# Application lifecycle
-# ---------------------------------------------------------------------------
-
-
 def test_models_are_registered_before_table_creation(tmp_path: Path) -> None:
     tables_at_creation: list[set[str]] = []
     original_create_all = Base.metadata.create_all
@@ -203,11 +193,6 @@ def test_health_and_docs_remain_available(tmp_path: Path) -> None:
         assert client.get("/health").status_code == 200
         assert client.get("/docs").status_code == 200
         assert client.get("/openapi.json").status_code == 200
-
-
-# ---------------------------------------------------------------------------
-# get_db dependency isolation
-# ---------------------------------------------------------------------------
 
 
 def test_get_db_uses_each_apps_database_and_closes_sessions(tmp_path: Path) -> None:

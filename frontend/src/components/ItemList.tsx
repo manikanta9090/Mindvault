@@ -71,7 +71,7 @@ export function ItemList({
   }, [offset, sourceType, status])
 
   useEffect(() => {
-    // Fetch is an external-system sync; state is set only after the await.
+    // Async fetch updates state after the request settles.
     // oxlint-disable-next-line react/set-state-in-effect
     void loadItems()
     return () => {

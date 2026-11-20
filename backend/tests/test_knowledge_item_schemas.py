@@ -71,11 +71,6 @@ def _response_payload(item_id: int = 1) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# KnowledgeItemCreate
-# ---------------------------------------------------------------------------
-
-
 def test_valid_note_input() -> None:
     schema = KnowledgeItemCreate(**NOTE_PAYLOAD)
 
@@ -199,11 +194,6 @@ def test_values_at_orm_length_limits_are_accepted(field: str, value: str) -> Non
     assert getattr(schema, field) == value
 
 
-# ---------------------------------------------------------------------------
-# KnowledgeItemResponse
-# ---------------------------------------------------------------------------
-
-
 def test_response_converts_from_orm_object() -> None:
     item = _orm_item(id=7, title="Notes", source_type=SourceType.URL, source_url="https://example.com")
 
@@ -271,11 +261,6 @@ def test_optional_fields_in_response(
 
     assert response.title == expected_title
     assert response.source_url == expected_url
-
-
-# ---------------------------------------------------------------------------
-# KnowledgeItemListResponse
-# ---------------------------------------------------------------------------
 
 
 def test_response_collection_validation() -> None:

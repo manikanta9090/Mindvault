@@ -78,11 +78,6 @@ def _patch_fetcher(monkeypatch: pytest.MonkeyPatch, fetcher: _FakeFetcher) -> No
     monkeypatch.setattr(ingestion, "UrlFetcher", lambda settings: fetcher)
 
 
-# ---------------------------------------------------------------------------
-# Successful URL ingestion
-# ---------------------------------------------------------------------------
-
-
 def test_url_ingestion_returns_201_with_expected_response(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -202,11 +197,6 @@ def test_url_item_with_blank_content_is_accepted(
     assert response.json()["content"] != ""
 
 
-# ---------------------------------------------------------------------------
-# Failure handling
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     "error",
     [
@@ -259,11 +249,6 @@ def test_real_unsafe_url_is_rejected_without_network_access(client: TestClient) 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "unsafe_url"
     assert _stored_items(client.app.state.database) == []
-
-
-# ---------------------------------------------------------------------------
-# NOTE behavior unchanged
-# ---------------------------------------------------------------------------
 
 
 def test_note_ingestion_remains_unchanged_alongside_url_support(client: TestClient) -> None:
