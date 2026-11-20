@@ -9,3 +9,9 @@ beautifulsoup4==4.14.3  # tolerant HTML parsing for readable-text extraction
 # Testing (Starlette's TestClient uses httpx2)
 pytest==9.2.0
 httpx2==2.16.2
+
+# Phase 4.0A — semantic/vector dependencies
+chromadb==1.5.9
+sentence-transformers==6.3.0
+transformers==5.23.0
+torch==2.15.0
