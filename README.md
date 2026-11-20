@@ -3,11 +3,11 @@
 MindVault is a personal knowledge application for saving notes and URLs, indexing them
 semantically, and asking questions with source citations.
 
-> **Current status: Milestone 4, Phase 4.5A.** Backend ingestion, automatic chunking,
-> embeddings, ChromaDB indexing, semantic retrieval, Groq-compatible RAG, and
-> `POST /query` are implemented. Mocked end-to-end verification passes. **Live Groq
-> verification was not performed** because no real API key was available in this
-> environment.
+> **Current status: complete full-stack implementation.** The three-panel frontend
+> workspace, note and URL ingestion, automatic chunking and indexing, semantic
+> retrieval backed by ChromaDB, and Groq-powered RAG with source citations are
+> implemented. The backend suite passes, and live Groq queries have been verified
+> manually with a real API key.
 
 ## Technology stack
 
@@ -53,7 +53,7 @@ reach the prompt. `POST /ingest` reports `indexing_status` separately from the i
 
 ```text
 MindVault/
-├── frontend/                    # Vite UI (unchanged by Phase 4.4)
+├── frontend/                    # Vite/React three-panel workspace
 ├── backend/
 │   ├── app/
 │   │   ├── api/routes/          # health, ingest, items, query
@@ -86,27 +86,27 @@ python -m venv backend\.venv
 .\backend\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 
-cd frontend
+Set-Location frontend
 npm install
-cd ..
+Set-Location ..
 ```
 
 If `python` resolves to the Microsoft Store stub, use `py -3.14` instead.
 
-Start the backend:
+Start the backend from the repository root:
 
 ```powershell
-cd backend
+Set-Location backend
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 The API listens at `http://localhost:8000`. Documentation is available at
 `http://localhost:8000/docs`.
 
-Start the frontend separately:
+In a second PowerShell terminal at the repository root, start the frontend:
 
 ```powershell
-cd frontend
+Set-Location frontend
 npm run dev
 ```
 
@@ -148,8 +148,15 @@ A missing key produces a `503` response only from `/query`.
 ### `GET /health`
 
 ```json
-{"status": "ok"}
+{
+  "status": "healthy",
+  "application": "MindVault",
+  "version": "1.0.0"
+}
 ```
+
+`application` and `version` come from `MINDVAULT_APPLICATION` and
+`MINDVAULT_VERSION`.
 
 ### `POST /ingest` — note
 
@@ -267,29 +274,36 @@ pending, failed, or stale vectors never become answer sources.
 
 ## Verification
 
-From `backend/`:
+From the repository root, run the backend suite with the project virtualenv:
 
 ```powershell
-# Focused ingestion / Phase 4.4 tests
-.\.venv\Scripts\python.exe -m pytest tests/test_ingest_auto_indexing.py tests/test_phase44_e2e.py tests/test_phase44_failures.py tests/test_phase44_hardening.py
-
-# Full backend suite
-.\.venv\Scripts\python.exe -m pytest
-
-# Bytecode check
+Set-Location backend
+.\.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q --tb=short
 .\.venv\Scripts\python.exe -m compileall app
 ```
 
-Phase 4.4 tests use real SQLite, real ChromaDB, real chunking, and real retrieval,
-with deterministic fake embedders and fake LLM providers. They verify pipeline wiring,
-metadata/citation integrity, idempotency, and failure recovery. They **do not** verify
-live Groq behavior or model answer quality. Set a real `MINDVAULT_GROQ_API_KEY` and run
-a manual `/query` check for live integration validation.
+The suite contains 350 tests covering schema validation, ingestion, SQLite persistence,
+chunking, indexing and idempotency, retrieval, ChromaDB integration, RAG citation
+mapping, API errors, and lifecycle/failure recovery. Integration tests use real SQLite
+and ChromaDB with deterministic fake embedders and LLM providers; they do not call a
+live provider.
+
+From the repository root, check the frontend:
+
+```powershell
+Set-Location frontend
+npm run lint
+npm run build
+```
+
+`npm run build` runs the TypeScript build and a production Vite build. There is no
+frontend automated test script; validation is lint plus type-check/build. Live Groq
+queries were verified manually with a real `MINDVAULT_GROQ_API_KEY`.
 
 ## Known limitations and production improvements
 
 - **Automatic indexing is synchronous.** `POST /ingest` waits for chunking, embedding,
-  and ChromaDB indexing. This is intentional for Phase 4.5A but adds latency; a
+  and ChromaDB indexing. This keeps the implementation simple but adds latency; a
   background worker/queue would be the next production improvement.
 - **Failed indexing leaves the item `COMPLETED` with PENDING or no chunks.** Retrieval
   safely ignores the gap and the response reports `indexing_status: "failed"` with a
@@ -300,6 +314,10 @@ a manual `/query` check for live integration validation.
 - **Citation validation checks IDs only.** Removing `[9]` proves the ID was not supplied,
   not that every sentence is supported. The source mapping remains in the response so
   users can inspect the evidence.
+- **URL extraction handles static HTML only.** Only `text/html` and
+  `application/xhtml+xml` responses are accepted, with a 2 MB body cap and three
+  redirect hops. JavaScript-rendered pages, PDFs, authenticated content, and full
+  readability extraction are not supported; noisy markup can reduce text quality.
 - **URL validation is pre-connect.** DNS results are validated before the HTTP request,
   but the client re-resolves the hostname. This is a DNS-rebinding/TOCTOU gap;
   MindVault does not provide complete SSRF protection. A hardened transport should
